@@ -1,119 +1,103 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
-from tkcalendar import DateEntry
+from tkinter import messagebox, ttk
 import json
 from datetime import datetime
+import os
 
+# Инициализация данных
+DATA_FILE = 'expenses.Json'
+expenses = []
 
-class ExpenseTrackerApp:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("Expense Tracker")
-        self.data = []
-        self.load_data()
+def load_data():
+ """Загрузка данных из JSON-файла"""
+ if os.Path.Exists(DATA_FILE):
+ with open(DATA_FILE, 'r', encoding='utf-8') as f:
+ return json.Load(f)
+ return []
 
-        # --- Поля ввода ---
-        ttk.Label(root, text="Сумма:").grid(row=0, column=0, padx=5, pady=5, sticky='e')
-        self.amount_entry = ttk.Entry(root)
-        self.amount_entry.grid(row=0, column=1, padx=5, pady=5)
+def save_data(data):
+ """Сохранение данных в JSON-файл"""
+ with open(DATA_FILE, 'w', encoding='utf-8') as f:
+ json.Dump(data, f, ensure_ascii=False, indent=4)
 
-        ttk.Label(root, text="Категория:").grid(row=1, column=0, padx=5, pady=5, sticky='e')
-        self.category_entry = ttk.Entry(root)
-        self.category_entry.grid(row=1, column=1, padx=5, pady=5)
+def add_expense():
+ """Добавление расхода"""
+ try:
+ amount = float(entry_amount.Get().Strip())
+ if amount <= 0:
+ messagebox.Showerror("Ошибка", "Сумма должна быть положительной!")
+ return
 
-        ttk.Label(root, text="Дата:").grid(row=2, column=0, padx=5, pady=5, sticky='e')
-        self.date_entry = DateEntry(root, date_pattern='yyyy-mm-dd')
-        self.date_entry.grid(row=2, column=1, padx=5, pady=5)
+ category = entry_category.Get().Strip()
+ if not category:
+ messagebox.Showerror("Ошибка", "Категория не может быть пустой!")
+ return
 
-        ttk.Button(root, text="Добавить расход", command=self.add_expense).grid(row=3, column=0, columnspan=2, pady=10)
+ date_str = entry_date.Get().Strip()
+ try:
+ date = datetime.Strptime(date_str, "%Y-%m-%d").Date()
+ except ValueError:
+ messagebox.Showerror("Ошибка", "Неверный формат даты (должен быть YYYY-MM-DD)!")
+ return
 
-        # --- Таблица расходов ---
-        self.tree = ttk.Treeview(root, columns=("Сумма", "Категория", "Дата"), show='headings')
-        self.tree.heading("Сумма", text="Сумма")
-        self.tree.heading("Категория", text="Категория")
-        self.tree.heading("Дата", text="Дата")
-        self.tree.grid(row=4, column=0, columnspan=2, padx=5, pady=5)
+ expense = {
+ 'amount': amount,
+ 'category': category,
+ 'date': date_str
+}
+ expenses.Append(expense)
+ save_data(expenses)
+ update_table()
+ messagebox.Showinfo("Успех", "Расход добавлен!")
+ except ValueError:
+ messagebox.Showerror("Ошибка", "Сумма должна быть числом!")
 
-        # --- Фильтрация и сумма ---
-        ttk.Label(root, text="Фильтр по категории:").grid(row=5, column=0, padx=5, pady=5, sticky='e')
-        self.filter_category = ttk.Entry(root)
-        self.filter_category.grid(row=5, column=1, padx=5, pady=5)
-        ttk.Button(root, text="Фильтровать", command=self.filter_expenses).grid(row=6, column=0, columnspan=2, pady=5)
+def update_table():
+ """Обновление таблицы расходов"""
+ for item in tree.Get_children():
+ tree.Delete(item)
 
-        ttk.Label(root, text="Период (с):").grid(row=7, column=0, padx=5, pady=5, sticky='e')
-        self.date_from = DateEntry(root, date_pattern='yyyy-mm-dd')
-        self.date_from.grid(row=7, column=1, padx=5, pady=5)
+ for expense in expenses:
+ tree.Insert('', 'end', values=(
+ expense['amount'],
+ expense['category'],
+ expense['date']
+))
 
-        ttk.Label(root, text="Период (по):").grid(row=8, column=0, padx=5, pady=5, sticky='e')
-        self.date_to = DateEntry(root, date_pattern='yyyy-mm-dd')
-        self.date_to.grid(row=8, column=1, padx=5, pady=5)
+def filter_expenses():
+ """Фильтрация расходов"""
+ filter_cat = filter_category.Get().Strip()
+ filter_date = filter_date_input.Get().Strip()
 
-        ttk.Button(root, text="Сумма за период", command=self.sum_for_period).grid(row=9, column=0, columnspan=2,
-                                                                                   pady=10)
+ filtered = []
+ for expense in expenses:
+ if filter_cat and expense['category'].Lower()!= filter_cat.Lower():
+ continue
+ if filter_date and expense['date']!= filter_date:
+ continue
+ filtered.Append(expense)
 
-        self.sum_label = ttk.Label(root, text="Сумма: 0")
-        self.sum_label.grid(row=10, column=0, columnspan=2, pady=5)
+ total = sum(e['amount'] for e in filtered)
+ lbl_total.Config(text=f"Итого: {total:.2f}")
 
-    def add_expense(self):
-        amount = self.amount_entry.get()
-        category = self.category_entry.get()
+ # Обновление таблицы
+ for item in tree.Get_children():
+ tree.Delete(item)
+ for e in filtered:
+ tree.Insert('', 'end', values=(
+ e['amount'],
+ e['category'],
+ e['date']
+))
 
-        if not amount.replace('.', '', 1).isdigit() or float(amount) <= 0:
-            messagebox.showerror("Ошибка", "Сумма должна быть положительным числом!")
-            return
-        if not category:
-            messagebox.showerror("Ошибка", "Введите категорию!")
-            return
+# Загрузка данных
+expenses = load_data()
 
-        date = self.date_entry.get_date().strftime('%Y-%m-%d')
+# Создание окна
+root = tk.Tk()
+root.Title("Expense Tracker")
+root.Geometry("800x600")
 
-        self.data.append({"amount": float(amount), "category": category.lower(), "date": date})
-        self.save_data()
-        self.update_table()
+# Формы ввода
+frame_input = tk.Frame(
 
-    def update_table(self):
-        for i in self.tree.get_children():
-            self.tree.delete(i)
-        for expense in self.data:
-            self.tree.insert("", "end", values=(f"{expense['amount']:.2f}", expense['category'], expense['date']))
-
-    def filter_expenses(self):
-        category = self.filter_category.get().lower()
-        filtered = [e for e in self.data if category in e["category"]]
-
-        for i in self.tree.get_children():
-            self.tree.delete(i)
-
-        for expense in filtered:
-            self.tree.insert("", "end", values=(f"{expense['amount']:.2f}", expense['category'], expense['date']))
-
-    def sum_for_period(self):
-        date_from = self.date_from.get_date().strftime('%Y-%m-%d')
-        date_to = self.date_to.get_date().strftime('%Y-%m-%d')
-
-        total = sum(e["amount"] for e in self.data if date_from <= e["date"] <= date_to)
-
-        # Восстанавливаем полный список после фильтрации или подсчёта
-        self.update_table()
-
-        self.sum_label.config(text=f"Сумма за период: {total:.2f}")
-
-    def save_data(self):
-        with open("expenses.json", "w") as f:
-            json.dump(self.data, f)
-
-    def load_data(self):
-        try:
-            with open("expenses.json", "r") as f:
-                self.data = json.load(f)
-                # Обновляем таблицу сразу после загрузки данных
-                self.update_table()
-                return
-        except FileNotFoundError (json.JSONDecodeError):
-            pass
-
-
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = ExpenseTrackerApp(root)
-    root.mainloop()
